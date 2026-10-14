@@ -1,5 +1,23 @@
 (() => {
-  const { api, go, esc } = window.Bm;
+  const { api, go, esc, store } = window.Bm;
+  const WORKFLOW_KEY = 'swarm-workflow';
+  const LLM_KEY = 'swarm-llm';
+  const configEl = document.getElementById('run-config');
+
+  // The workflow and model chosen on the Agents and API Key pages travel with each analysis.
+  const savedWorkflow = () => {
+    const w = store.read(WORKFLOW_KEY, null);
+    return Array.isArray(w) && w.length ? w : null;
+  };
+  const savedLLM = () => store.read(LLM_KEY, { provider: 'ollama' });
+
+  function showConfig() {
+    const workflow = savedWorkflow();
+    const llm = savedLLM();
+    const names = { ollama: 'Ollama', openai: 'OpenAI-compatible', anthropic: 'Anthropic' };
+    configEl.innerHTML = `Workflow: <strong>${workflow ? workflow.length : 8} agents</strong>${workflow ? '' : ' (default order)'} · <a href="/agents">edit</a> &nbsp; Model: <strong>${esc(names[llm.provider] ?? 'Ollama')}</strong> · <a href="/settings">change</a>`;
+  }
+  showConfig();
   const form = document.getElementById('company-form');
   const errorBox = document.getElementById('errors');
   const submitBtn = form.querySelector('button[type="submit"]');
@@ -32,6 +50,9 @@
     submitBtn.textContent = 'Starting swarm…';
     try {
       const data = Object.fromEntries(new FormData(form));
+      const workflow = savedWorkflow();
+      if (workflow) data.workflow = workflow;
+      data.llm = savedLLM();
       const job = await api('/api/jobs', { method: 'POST', body: JSON.stringify(data) });
       go(job.links.run);
     } catch (err) {
@@ -41,5 +62,6 @@
     }
   });
 
-  if (new URLSearchParams(location.search).get('sample') === '1') fillSample();
+  // The Analysis Demo page always opens with the test data loaded.
+  if (!form.elements.companyName.value) fillSample();
 })();

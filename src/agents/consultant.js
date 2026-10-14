@@ -1,6 +1,6 @@
 // Agent 5 — Consultant: review sentiment, feature-area gaps, prioritised improvements and an optional Ollama narrative.
 import { areaMultiplier } from '../feedback.js';
-import { llmAvailable, completeWithOllama } from '../llm.js';
+import { llmAvailable, completeWithLLM } from '../llm.js';
 import { ASPECTS, aspectSentiments, labelOf, scoreText } from '../sentiment.js';
 import { mean, round } from '../util.js';
 
@@ -22,7 +22,8 @@ const SYSTEM_PROMPT =
   'Reply with 4-6 concise bullet points covering market gaps, what to improve first, and one lead-generation move.';
 
 export async function consultantAgent(ctx) {
-  const { parser, refiner, leadgen } = ctx;
+  const { parser, refiner } = ctx;
+  const leadgen = ctx.leadgen ?? { actions: [] }; // optional: absent or reordered after this agent
 
   const scored = parser.reviews.map((r, idx) => {
     const text = scoreText(r.text);
@@ -90,7 +91,7 @@ export async function consultantAgent(ctx) {
 
   let narrative = null;
   let llmStatus = 'disabled';
-  if (llmAvailable()) {
+  if (llmAvailable(ctx.input.llm)) {
     try {
       const samples = scored.filter((s) => s.label === 'negative' && !s.injection).slice(0, 5).map((s) => s.text.slice(0, 300));
       const payload = {
@@ -103,11 +104,11 @@ export async function consultantAgent(ctx) {
         gaps,
         topRecommendations: recommendations.slice(0, 5).map((r) => ({ area: r.area, action: r.action })),
       };
-      narrative = await completeWithOllama({
+      narrative = await completeWithLLM({
         system: SYSTEM_PROMPT,
         user: `${JSON.stringify(payload)}\n<data>\n${samples.join('\n---\n')}\n</data>`,
-      });
-      llmStatus = narrative ? 'ollama' : 'ollama returned no text';
+      }, ctx.input.llm);
+      llmStatus = narrative ? (ctx.input.llm?.provider ?? 'ollama') : 'model returned no text';
     } catch (err) {
       llmStatus = `error: ${err.message}`;
     }

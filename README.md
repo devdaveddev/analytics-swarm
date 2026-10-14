@@ -1,9 +1,21 @@
 # Analytics Swarm
 
 A multi-agent business analytics dashboard. Enter company data (metrics, reviews, documents, optional live
-source URLs). Seven agents run in order: collector, parser, analyzer, refiner, lead generation, consultant and
-visualizer. The result is an interactive dashboard with KPIs, a revenue outlook, a relationship graph, sentiment,
-insights, prioritised recommendations, an "Ask your data" panel, and a feedback loop that learns from corrections.
+source URLs) or run the built-in test data. Up to eight agents run in an order you control: collector, parser,
+analyzer, refiner, lead generation, forecaster, consultant and visualizer. The result is an interactive dashboard
+with KPIs, a revenue outlook, a relationship graph, sentiment, insights, prioritised recommendations, an
+"Ask your data" panel, and a feedback loop that learns from corrections.
+
+## Pages
+
+| Page | What it does |
+|---|---|
+| **Analysis Demo** (`/new`) | Opens with test data pre-filled. Edit it or paste your own, then run the swarm. |
+| **API Key** (`/settings`) | Choose the model provider. Ollama is the default and needs no key. OpenAI-compatible and Anthropic are available with a key. |
+| **Agents** (`/agents`) | n8n-style editor: drag agents to change the order, remove optional ones, add them back. The order is validated against each agent's dependencies. |
+
+API keys are stored in the browser only and sent with each analysis. The server keeps them in memory for that job,
+never writes them to disk, and never returns them. A saved workflow order is also kept in the browser.
 
 ## Run locally
 

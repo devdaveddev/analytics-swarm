@@ -117,7 +117,7 @@ test('control agent emits ordered events ending with an end event', async () => 
   assert.deepEqual(seqs, [...seqs].sort((a, b) => a - b));
   assert.equal(job.events.at(-1).type, 'end');
   const started = job.events.filter((e) => e.type === 'agent' && e.status === 'running').map((e) => e.agent);
-  assert.deepEqual(started, ['collector', 'parser', 'analyzer', 'refiner', 'leadgen', 'consultant', 'visualizer']);
+  assert.deepEqual(started, ['collector', 'parser', 'analyzer', 'refiner', 'leadgen', 'forecaster', 'consultant', 'visualizer']);
 });
 
 test('SSRF guard rejects private, loopback, local and credentialed URLs', async () => {
@@ -251,4 +251,63 @@ test('ask context exposes the forecast and never includes raw review text', asyn
   assert.equal(forecast.points.filter((p) => p.projected).length, 3);
   assert.deepEqual(ctx.forecast, forecast.points);
   assert.ok(!JSON.stringify(ctx).includes('Setup took 10 minutes'), 'review text must not be sent to the model');
+});
+
+import { DEFAULT_ORDER, validateWorkflow } from '../src/workflow.js';
+import { llmAvailable } from '../src/llm.js';
+
+test('workflow: the default order is valid and every rule has a clear message', () => {
+  assert.equal(validateWorkflow(DEFAULT_ORDER).ok, true);
+  const swapped = validateWorkflow(['parser', 'refiner', 'analyzer', 'consultant', 'visualizer']);
+  assert.equal(swapped.ok, false);
+  assert.ok(swapped.errors.some((e) => e.includes('Refiner must run after Analyzer')));
+  assert.ok(validateWorkflow(['parser', 'analyzer', 'refiner', 'consultant']).errors.some((e) => e.includes('Visualizer must be the last')));
+  assert.ok(validateWorkflow(['parser', 'parser']).errors.some((e) => e.includes('more than once')));
+  assert.ok(validateWorkflow(['constructor']).errors[0].includes('Unknown agent'));
+  assert.ok(validateWorkflow(['analyzer', 'parser', 'refiner', 'consultant', 'visualizer']).errors.length > 0);
+  assert.ok(validateWorkflow(DEFAULT_ORDER.filter((n) => n !== 'consultant')).errors.some((e) => e.includes('Consultant is required')));
+});
+
+test('workflow: optional agents can be removed and soft ordering only warns', () => {
+  const trimmed = validateWorkflow(['parser', 'analyzer', 'refiner', 'consultant', 'visualizer']);
+  assert.equal(trimmed.ok, true);
+  const early = validateWorkflow(['parser', 'collector', 'analyzer', 'refiner', 'leadgen', 'forecaster', 'consultant', 'visualizer']);
+  assert.equal(early.ok, true);
+  assert.ok(early.warnings.some((w) => w.includes('Parser & Researcher runs before Collector')));
+});
+
+test('workflow: a reordered and trimmed pipeline runs end to end', async () => {
+  const control = new ControlAgent();
+  const workflow = ['parser', 'analyzer', 'refiner', 'forecaster', 'consultant', 'visualizer'];
+  const job = await waitForJob(control, control.submit({ ...SAMPLE_FORM, workflow }));
+  assert.equal(job.status, 'completed', job.error ?? '');
+  assert.deepEqual(job.pipeline.map((p) => p.name), workflow);
+  const types = job.result.widgets.map((w) => w.id);
+  assert.ok(!types.includes('funnel'), 'no lead-gen agent, so no funnel');
+  assert.ok(types.includes('forecast'));
+  assert.deepEqual(job.result.meta.stages, workflow);
+});
+
+test('workflow: leadgen after consultant still completes, and invalid orders are rejected before any agent runs', async () => {
+  const control = new ControlAgent();
+  const order = ['collector', 'parser', 'analyzer', 'refiner', 'consultant', 'leadgen', 'forecaster', 'visualizer'];
+  const job = await waitForJob(control, control.submit({ ...SAMPLE_FORM, workflow: order }));
+  assert.equal(job.status, 'completed', job.error ?? '');
+  assert.ok(job.warnings.some((w) => w.includes('Consultant runs before Lead Generation')));
+  assert.throws(() => control.submit({ ...SAMPLE_FORM, workflow: ['visualizer', 'parser'] }), GuardrailError);
+});
+
+test('llm settings: ollama is the default; keys are kept out of snapshots and results', async () => {
+  const control = new ControlAgent();
+  const job = control.submit({ ...SAMPLE_FORM, llm: { provider: 'openai', model: 'x', baseUrl: 'http://127.0.0.1:9/v1', apiKey: 'sk-secret-123' } });
+  await waitForJob(control, job);
+  const exposed = JSON.stringify(control.snapshot(job)) + JSON.stringify(job.result);
+  assert.ok(!exposed.includes('sk-secret-123'), 'API key must never appear in API responses');
+  assert.equal(llmAvailable(), process.env.OLLAMA_DISABLED !== '1');
+  assert.equal(llmAvailable({ provider: 'openai', apiKey: '' }), false);
+  assert.equal(llmAvailable({ provider: 'openai', apiKey: 'k' }), true);
+  const bad = validateCompanyInput({ ...SAMPLE_FORM, llm: { provider: 'evil' } });
+  assert.equal(bad.ok, false);
+  const nokey = validateCompanyInput({ ...SAMPLE_FORM, llm: { provider: 'anthropic' } });
+  assert.ok(nokey.warnings.some((w) => w.includes('No API key')));
 });

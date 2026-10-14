@@ -67,4 +67,27 @@
 
   applyTheme(readTheme() || 'dark');
   document.addEventListener('DOMContentLoaded', mountThemeToggle);
+
+  // Per-browser settings (LLM provider and key, workflow order). Storage can be blocked, so every call is guarded.
+  window.Bm.store = {
+    read(key, fallback = null) {
+      try {
+        const raw = localStorage.getItem(key);
+        return raw === null ? fallback : JSON.parse(raw);
+      } catch { return fallback; }
+    },
+    write(key, value) {
+      try { localStorage.setItem(key, JSON.stringify(value)); return true; } catch { return false; }
+    },
+    remove(key) {
+      try { localStorage.removeItem(key); } catch { /* ignore */ }
+    },
+  };
+
+  // Mark the current page in the header.
+  document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.topbar nav a[data-nav]').forEach((a) => {
+      if (a.dataset.nav === location.pathname) a.setAttribute('aria-current', 'page');
+    });
+  });
 })();

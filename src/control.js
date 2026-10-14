@@ -9,17 +9,27 @@ import { analyzerAgent } from './agents/analyzer.js';
 import { refinerAgent } from './agents/refiner.js';
 import { leadgenAgent } from './agents/leadgen.js';
 import { consultantAgent } from './agents/consultant.js';
+import { forecasterAgent } from './agents/forecaster.js';
 import { visualizerAgent } from './agents/visualizer.js';
+import { AGENT_META, DEFAULT_ORDER } from './workflow.js';
 
-export const PIPELINE = [
-  { name: 'collector', label: 'Collector', role: 'Live-fetches source URLs and analyses pasted documents', run: collectorAgent },
-  { name: 'parser', label: 'Parser & Researcher', role: 'Parses input, redacts PII, attaches benchmarks, checks data quality', run: parserAgent },
-  { name: 'analyzer', label: 'Analyzer', role: 'Computes KPIs per month, period trends and anomalies', run: analyzerAgent },
-  { name: 'refiner', label: 'Refiner', role: 'Corrects impossible values, scores confidence, ranks insights', run: refinerAgent },
-  { name: 'leadgen', label: 'Lead Generation & Marketing', role: 'Funnel, channel fit, spend efficiency, lead-gen actions', run: leadgenAgent },
-  { name: 'consultant', label: 'Consultant', role: 'Review sentiment, market gaps, prioritised improvements', run: consultantAgent, timeoutMs: 120_000 },
-  { name: 'visualizer', label: 'Visualizer', role: 'Builds the interactive dashboard specification', run: visualizerAgent },
-];
+const IMPLEMENTATIONS = {
+  collector: { run: collectorAgent },
+  parser: { run: parserAgent },
+  analyzer: { run: analyzerAgent },
+  refiner: { run: refinerAgent },
+  leadgen: { run: leadgenAgent },
+  forecaster: { run: forecasterAgent },
+  consultant: { run: consultantAgent, timeoutMs: 120_000 }, // may wait on a local model
+  visualizer: { run: visualizerAgent },
+};
+
+// Turns an ordered list of agent names into runnable steps. The order has already been validated.
+export function buildPipeline(order) {
+  return order.map((name) => ({ name, label: AGENT_META[name].label, role: AGENT_META[name].role, ...IMPLEMENTATIONS[name] }));
+}
+
+export const PIPELINE = buildPipeline(DEFAULT_ORDER);
 
 export class GuardrailError extends Error {
   constructor(errors) {
@@ -45,11 +55,10 @@ function withTimeout(promise, ms, label) {
 }
 
 export class ControlAgent {
-  constructor({ maxConcurrent = 3, maxJobs = 100, agentTimeoutMs = 20_000, pipeline = PIPELINE } = {}) {
+  constructor({ maxConcurrent = 3, maxJobs = 100, agentTimeoutMs = 20_000 } = {}) {
     this.maxConcurrent = maxConcurrent;
     this.maxJobs = maxJobs;
     this.agentTimeoutMs = agentTimeoutMs;
-    this.pipeline = pipeline;
     this.jobs = new Map();
     this.bus = new EventEmitter();
     this.bus.setMaxListeners(0);
@@ -62,6 +71,7 @@ export class ControlAgent {
     if (this.active >= this.maxConcurrent) throw new CapacityError();
     this.#evict();
 
+    const pipeline = buildPipeline(verdict.value.workflow);
     const now = new Date().toISOString();
     const job = {
       id: newId(),
@@ -72,8 +82,10 @@ export class ControlAgent {
       input: { companyName: verdict.value.companyName },
       raw,
       warnings: verdict.warnings,
-      pipeline: this.pipeline.map(({ name, label, role }) => ({ name, label, role })),
-      agents: Object.fromEntries(this.pipeline.map((a) => [a.name, { label: a.label, status: 'pending', ms: null, summary: null }])),
+      steps: pipeline,
+      llm: verdict.value.llm,
+      pipeline: pipeline.map(({ name, label, role }) => ({ name, label, role })),
+      agents: Object.fromEntries(pipeline.map((a) => [a.name, { label: a.label, status: 'pending', ms: null, summary: null }])),
       events: [],
       result: null,
       error: null,
@@ -110,11 +122,11 @@ export class ControlAgent {
   }
 
   async #run(job, input) {
-    const ctx = { input };
+    const ctx = { input, stages: job.steps.map((s) => s.name) };
     job.status = 'running';
     this.#emit(job, 'job', { status: 'running', message: 'Swarm started' });
 
-    for (const agent of this.pipeline) {
+    for (const agent of job.steps) {
       const state = job.agents[agent.name];
       job.stage = agent.name;
       state.status = 'running';

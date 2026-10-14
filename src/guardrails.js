@@ -1,5 +1,6 @@
 // Guardrails: input validation, PII redaction, prompt-injection flagging and output checks.
 import { round } from './util.js';
+import { DEFAULT_ORDER, validateWorkflow } from './workflow.js';
 
 export const INDUSTRIES = ['saas', 'ecommerce', 'retail', 'services', 'manufacturing', 'healthcare', 'fintech', 'general'];
 
@@ -214,6 +215,26 @@ export function parseDocuments(source, errors, warnings) {
   return docs;
 }
 
+// LLM settings arrive from the browser with each request. Keys are kept in memory only.
+export function parseLLM(raw, errors, warnings) {
+  const fallback = { provider: 'ollama', model: '', baseUrl: '', apiKey: '' };
+  if (raw === undefined || raw === null) return fallback;
+  if (!isPlainObject(raw)) {
+    errors.push('LLM settings must be an object.');
+    return fallback;
+  }
+  const provider = String(raw.provider ?? 'ollama');
+  if (!['ollama', 'openai', 'anthropic'].includes(provider)) {
+    errors.push('LLM provider must be ollama, openai or anthropic.');
+    return fallback;
+  }
+  const baseUrl = sanitizeText(raw.baseUrl, 300);
+  if (baseUrl && !/^https?:\/\//i.test(baseUrl)) errors.push('LLM base URL must start with http:// or https://.');
+  const apiKey = typeof raw.apiKey === 'string' ? raw.apiKey.trim().slice(0, 300) : '';
+  if (provider !== 'ollama' && !apiKey) warnings.push(`No API key for ${provider}; the narrative and Ask will use rule-based answers.`);
+  return { provider, model: sanitizeText(raw.model, 100), baseUrl, apiKey };
+}
+
 export function validateCompanyInput(raw) {
   const errors = [];
   const warnings = [];
@@ -245,6 +266,11 @@ export function validateCompanyInput(raw) {
   const reviews = parseReviews(raw.reviews ?? raw.reviewsText, errors, warnings);
   const sourceUrls = parseSourceUrls(raw.sourceUrls, errors);
   const documents = parseDocuments(raw.documents, errors, warnings);
+  const workflow = raw.workflow === undefined ? DEFAULT_ORDER : raw.workflow;
+  const flow = validateWorkflow(workflow);
+  errors.push(...flow.errors);
+  warnings.push(...flow.warnings);
+  const llm = parseLLM(raw.llm, errors, warnings);
 
   if (errors.length) return { ok: false, errors, warnings, value: null };
 
@@ -267,6 +293,8 @@ export function validateCompanyInput(raw) {
       reviews,
       sourceUrls,
       documents,
+      workflow: [...workflow],
+      llm,
     },
   };
 }

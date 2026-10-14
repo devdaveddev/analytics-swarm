@@ -1,23 +1,5 @@
 // Agent 7 — Visualizer: turns all upstream results into a dashboard spec the browser renders interactively.
 import { ASPECTS } from '../sentiment.js';
-import { linreg, round, stdev } from '../util.js';
-
-// Linear trend projection with a band of one residual standard deviation. Labelled as a trend, not a model.
-function forecastRevenue(series, steps = 3) {
-  const pts = series.filter((s) => s.revenue !== null);
-  if (pts.length < 3) return [];
-  const ys = pts.map((s) => s.revenue);
-  const { slope, intercept } = linreg(ys);
-  const residuals = ys.map((y, i) => y - (intercept + slope * i));
-  const band = stdev(residuals) ?? 0;
-  const out = pts.map((s, i) => ({ x: s.month, y: s.revenue, projected: false }));
-  for (let k = 1; k <= steps; k++) {
-    const i = pts.length - 1 + k;
-    const y = round(intercept + slope * i, 0);
-    out.push({ x: `+${k} mo`, y, low: round(y - band, 0), high: round(y + band, 0), projected: true });
-  }
-  return out;
-}
 
 const toneFor = (v, threshold) => (v == null ? 'neutral' : v > threshold ? 'good' : v < -threshold ? 'bad' : 'neutral');
 const higherIsBetter = (v, target) => (v == null ? 'neutral' : v >= target ? 'good' : v < target * 0.7 ? 'bad' : 'neutral');
@@ -90,7 +72,11 @@ function buildGraph(kpiNodes, consultant, refiner) {
 }
 
 export async function visualizerAgent(ctx) {
-  const { input, parser, refiner, leadgen, consultant, collector } = ctx;
+  // Optional agents may be removed or reordered in the workflow, so each has a safe fallback.
+  const { input, parser, refiner, consultant } = ctx;
+  const leadgen = ctx.leadgen ?? null;
+  const forecaster = ctx.forecaster ?? null;
+  const collector = ctx.collector ?? { documents: [], sources: [] };
   const k = refiner.kpis;
   const bm = parser.benchmarks;
 
@@ -142,15 +128,17 @@ export async function visualizerAgent(ctx) {
       format: 'currency',
       series: [{ name: 'Revenue', points: refiner.series.map((s) => ({ x: s.month, y: s.revenue })) }],
     },
-    {
-      id: 'forecast',
-      type: 'forecast',
-      size: 'wide',
-      title: 'Revenue outlook (linear trend, next 3 months)',
-      format: 'currency',
-      points: forecastRevenue(refiner.series),
-      note: 'A straight-line trend with a band of one standard deviation of past residuals. It is not a seasonal forecast.',
-    },
+    ...(forecaster?.points.length
+      ? [{
+          id: 'forecast',
+          type: 'forecast',
+          size: 'wide',
+          title: 'Revenue outlook (linear trend, next 3 months)',
+          format: 'currency',
+          points: forecaster.points,
+          note: 'A straight-line trend with a band of one standard deviation of past residuals. It is not a seasonal forecast.',
+        }]
+      : []),
     {
       id: 'graph',
       type: 'graph',
@@ -158,14 +146,16 @@ export async function visualizerAgent(ctx) {
       title: 'How the findings connect',
       ...buildGraph(kpiNodes, consultant, refiner),
     },
-    {
-      id: 'funnel',
-      type: 'funnel',
-      size: 'half',
-      title: 'Lead funnel',
-      stages: leadgen.funnel.map((s) => ({ label: s.label, value: s.value, rate: s.rate ?? null })),
-      footnote: leadgen.weakestStage ? `Weakest stage: ${leadgen.weakestStage.label.toLowerCase()}` : null,
-    },
+    ...(leadgen
+      ? [{
+          id: 'funnel',
+          type: 'funnel',
+          size: 'half',
+          title: 'Lead funnel',
+          stages: leadgen.funnel.map((s) => ({ label: s.label, value: s.value, rate: s.rate ?? null })),
+          footnote: leadgen.weakestStage ? `Weakest stage: ${leadgen.weakestStage.label.toLowerCase()}` : null,
+        }]
+      : []),
     {
       id: 'sentiment',
       type: 'donut',
@@ -267,7 +257,7 @@ export async function visualizerAgent(ctx) {
     widgets,
     warnings,
     meta: {
-      stages: ['collector', 'parser', 'analyzer', 'refiner', 'leadgen', 'consultant', 'visualizer'],
+      stages: ctx.stages ?? [],
       llm: consultant.llmStatus,
     },
   };

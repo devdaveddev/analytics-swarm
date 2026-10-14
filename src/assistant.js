@@ -1,6 +1,6 @@
 // "Ask your data": answers questions about a finished dashboard. The LLM only sees the dashboard spec
 // as data and is told to answer from it alone. If the LLM is off or fails, a rule-based answer is returned.
-import { completeWithOllama, llmAvailable } from './llm.js';
+import { completeWithLLM, llmAvailable } from './llm.js';
 
 const SYSTEM_PROMPT =
   'You answer questions about a business analytics dashboard. Use ONLY the figures in the JSON provided. ' +
@@ -73,15 +73,15 @@ export function ruleAnswer(spec, question) {
   return 'I can answer questions about the KPIs (revenue, churn, CAC, ARPU, customers, conversion, sentiment) and about the top issues or recommendations. Try one of those, or enable the local model for free-form questions.';
 }
 
-export async function askDashboard(spec, question) {
-  if (llmAvailable()) {
+export async function askDashboard(spec, question, llm) {
+  if (llmAvailable(llm)) {
     try {
-      const answer = await completeWithOllama({
+      const answer = await completeWithLLM({
         system: SYSTEM_PROMPT,
         user: `Question: ${question}\n<data>\n${JSON.stringify(dashboardContext(spec))}\n</data>`,
         maxTokens: 300,
-      });
-      if (answer) return { answer, source: 'ollama' };
+      }, llm);
+      if (answer) return { answer, source: llm?.provider ?? 'ollama' };
     } catch {
       // fall through to the rule-based answer
     }

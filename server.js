@@ -3,10 +3,11 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ControlAgent, PIPELINE } from './src/control.js';
-import { llmAvailable } from './src/llm.js';
+import { completeWithLLM, defaultLLM, llmAvailable, PROVIDERS } from './src/llm.js';
+import { workflowMeta } from './src/workflow.js';
 import { SAMPLE_FORM } from './src/sample.js';
 import { feedbackStats, loadFeedback, recordRecommendationVote, recordReviewCorrection } from './src/feedback.js';
-import { sanitizeText } from './src/guardrails.js';
+import { parseLLM, sanitizeText } from './src/guardrails.js';
 import { askDashboard } from './src/assistant.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
@@ -16,7 +17,14 @@ const MAX_BODY_BYTES = 1_000_000;
 const JOB_ID = /^[0-9a-f-]{36}$/;
 
 // Clean URLs for the multi-page site. Every page opens in the same window (no target=_blank).
-const PAGES = { '/': 'index.html', '/new': 'new.html', '/run': 'run.html', '/dashboard': 'dashboard.html' };
+const PAGES = {
+  '/': 'index.html',
+  '/new': 'new.html',
+  '/run': 'run.html',
+  '/dashboard': 'dashboard.html',
+  '/settings': 'settings.html',
+  '/agents': 'agents.html',
+};
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
@@ -97,6 +105,28 @@ async function handleApi(req, res, url) {
   if (req.method === 'GET' && pathname === '/api/health') {
     return sendJson(res, 200, { ok: true, llm: llmAvailable(), stages: PIPELINE.map((p) => p.name) });
   }
+  if (req.method === 'GET' && pathname === '/api/workflow') {
+    return sendJson(res, 200, workflowMeta());
+  }
+  if (req.method === 'GET' && pathname === '/api/llm/providers') {
+    return sendJson(res, 200, { default: { ...defaultLLM(), apiKey: undefined }, providers: PROVIDERS, ollamaEnabled: llmAvailable() });
+  }
+  if (req.method === 'POST' && pathname === '/api/llm/test') {
+    const body = await readJson(req);
+    const errors = [];
+    const warnings = [];
+    const llm = parseLLM(body.llm, errors, warnings);
+    if (errors.length) throw Object.assign(new HttpError(400, 'Invalid LLM settings.'), { errors });
+    if (!llmAvailable(llm)) {
+      return sendJson(res, 200, { ok: false, error: llm.provider === 'ollama' ? 'Ollama is disabled on this server (OLLAMA_DISABLED=1).' : 'Add an API key first.' });
+    }
+    try {
+      const reply = await completeWithLLM({ system: 'Reply with one short sentence.', user: 'Say that the connection works.', maxTokens: 40 }, llm);
+      return sendJson(res, 200, { ok: Boolean(reply), reply: reply ?? null, error: reply ? undefined : 'The model returned no text.' });
+    } catch (err) {
+      return sendJson(res, 200, { ok: false, error: err.message });
+    }
+  }
   if (req.method === 'GET' && pathname === '/api/sample') {
     return sendJson(res, 200, SAMPLE_FORM);
   }
@@ -138,7 +168,7 @@ async function handleApi(req, res, url) {
     const body = await readJson(req);
     const question = sanitizeText(body.question, 500);
     if (question.length < 3) throw new HttpError(400, 'Ask a question of at least 3 characters.');
-    return sendJson(res, 200, await askDashboard(job.result, question));
+    return sendJson(res, 200, await askDashboard(job.result, question, job.llm));
   }
 
   const refresh = pathname.match(/^\/api\/jobs\/([^/]+)\/refresh$/);
