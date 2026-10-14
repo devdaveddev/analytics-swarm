@@ -490,9 +490,48 @@
     return `<p class="empty">${esc(text)}</p>`;
   }
 
+  // Sections turn one long column into a scannable page: overview first, details on demand.
+  const SECTIONS = [
+    { id: 'trends', title: 'Trends & funnel', widgets: ['forecast', 'funnel', 'sentiment'] },
+    { id: 'findings', title: 'Findings & actions', widgets: ['insights', 'aspects', 'graph', 'recommendations'] },
+    { id: 'customers', title: 'Customer voice', widgets: ['reviews', 'documents'] },
+    { id: 'data', title: 'Sources & summary', widgets: ['sources', 'summary'] },
+  ];
+  const SIZE = { sources: 'half', summary: 'wide', graph: 'wide', recommendations: 'wide' };
+  const isEmpty = (w) => (w.type === 'documents' && !w.items.length) || (w.id === 'sources' && !w.rows.length);
+
+  function layout(s) {
+    const byId = Object.fromEntries(s.widgets.map((w) => [w.id, w]));
+    const hasForecast = (byId.forecast?.points?.length ?? 0) >= 3;
+    const used = new Set(hasForecast ? ['revenue-trend'] : []);
+    const sections = SECTIONS.map((sec) => {
+      const ids = sec.id === 'trends' && !hasForecast ? ['revenue-trend', ...sec.widgets] : sec.widgets;
+      ids.forEach((id) => used.add(id));
+      return { ...sec, items: ids.map((id) => byId[id]).filter((w) => w && !isEmpty(w)) };
+    });
+    const rest = s.widgets.filter((w) => !used.has(w.id) && !isEmpty(w));
+    if (rest.length) sections.push({ id: 'more', title: 'More', items: rest });
+    return sections.filter((sec) => sec.items.length);
+  }
+
+  function sectionsHtml(sections, cur) {
+    return sections
+      .map((sec) => `<section class="dash-section" id="sec-${sec.id}" aria-labelledby="h-${sec.id}">
+        <h2 class="sec-title" id="h-${sec.id}">${esc(sec.title)}</h2>
+        <div class="grid">${sec.items.map((w) => widgetHtml({ ...w, size: SIZE[w.id] ?? w.size }, cur)).join('')}</div>
+      </section>`)
+      .join('');
+  }
+
+  function sectionNav(sections) {
+    const links = [{ id: 'overview', title: 'Overview' }, ...sections].map((s) => `<a href="#sec-${s.id}">${esc(s.title)}</a>`);
+    return `<nav class="sec-nav" aria-label="Dashboard sections">${links.join('')}</nav>`;
+  }
+
   function render() {
     const s = state.spec;
     const cur = s.currency;
+    const sections = layout(s);
     state.aspectLabels = s.widgets.find((w) => w.type === 'reviews')?.aspectLabels ?? {};
     document.title = s.title;
     const generated = new Date(s.generatedAt).toLocaleString();
@@ -505,7 +544,7 @@
       <div class="dash-head">
         <div>
           <h1>${esc(s.title)}</h1>
-          <p class="muted">Generated ${esc(generated)} · data confidence ${Math.round(s.confidence * 100)}% · stages: ${esc(s.meta.stages.join(' → '))}</p>
+          <p class="muted">Generated ${esc(generated)} · data confidence ${Math.round(s.confidence * 100)}%</p>
           <p class="muted small" id="live-status" aria-live="polite"></p>
         </div>
         <div class="head-actions">
@@ -516,11 +555,14 @@
       </div>
       ${toast}
       ${warnings}
+      ${sectionNav(sections)}
+      <section class="overview" id="sec-overview">
       ${healthBanner(s)}
       <section class="kpis">${s.kpiTiles.map((t) => kpiHtml(t, cur)).join('')}</section>
       ${askPanel()}
-      <section class="grid">${s.widgets.map((w) => widgetHtml(w, cur)).join('')}</section>
-      <section class="card timeline"><h2>Agent swarm trace</h2>${trace()}</section>
+      </section>
+      ${sectionsHtml(sections, cur)}
+      <details class="card timeline"><summary>Agent swarm trace (${s.meta.stages.length} stages)</summary>${trace()}</details>
     `;
   }
 

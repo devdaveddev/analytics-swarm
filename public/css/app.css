@@ -538,3 +538,36 @@ img, svg { max-width: 100%; }
   .pipeline { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 .hero { margin: 0; border-radius: 20px; }
+
+/* Dashboard sections and sticky nav */
+.sec-nav {
+  position: sticky; top: 0; z-index: 4; display: flex; gap: 6px; overflow-x: auto; padding: 10px 0; margin: 12px 0 0;
+  background: var(--bg); border-bottom: 1px solid var(--border); scrollbar-width: thin;
+}
+.sec-nav a {
+  flex: none; padding: 8px 14px; border-radius: 999px; color: var(--muted); text-decoration: none; font-weight: 600; font-size: .9rem;
+  border: 1px solid transparent; min-height: 36px; display: inline-flex; align-items: center;
+}
+.sec-nav a:hover { color: var(--text); background: var(--surface-2); }
+.sec-nav a:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 1px; }
+.dash-section, .overview { scroll-margin-top: 120px; }
+.dash-section { margin-top: 36px; }
+.sec-title { font-size: .8rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 4px; }
+.dash-section .grid { margin-top: 8px; }
+.overview > .card:first-of-type { margin-top: 16px; }
+.timeline summary { cursor: pointer; font-weight: 600; }
+.timeline ol { margin-top: 12px; }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+/* KPI grid: 7 tiles read as 4 + 3 on desktop, 2 columns on phones */
+@media (min-width: 1000px) {
+  .kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+/* Tables scroll inside their card on small screens instead of crushing their columns */
+@media (max-width: 760px) {
+  .table-wrap { margin: 0 -4px; padding: 0 4px; }
+  .table-wrap table { min-width: 560px; }
+  td, th { word-break: normal; overflow-wrap: normal; }
+  .card, .stage, .hero { overflow-wrap: break-word; }
+}
