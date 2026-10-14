@@ -30,7 +30,7 @@ The written summary, custom agents and **Ask your data** all use the model you c
 model is available, Ask says how to enable one. The **temperature** setting (0 to 1) controls how closely the model sticks to the figures. Lower
 values, around 0.1 to 0.3, are consistent and factual. Higher values are more varied. It is set on the API Key page and can be changed for a
 single question on the dashboard. Ask is given the monthly series, KPI definitions, industry benchmarks, insights, feature-area sentiment and a
-few short review excerpts, and it keeps the last few questions so follow-ups work. A 3B model on a CPU can still be slow or inaccurate, and Ollama
+few short review excerpts, and it keeps the last few questions so follow-ups work. A small local model on a CPU can still be slow or inaccurate, and Ollama
 needs free memory to load it; the dashboard shows the reason when a call fails.
 
 ### Custom agents and guidance
@@ -56,7 +56,7 @@ Optional local AI narrative and Q&A via [Ollama](https://ollama.com):
 
 ```
 ollama serve
-ollama pull qwen2.5:3b
+ollama pull qwen2.5:1.5b
 ```
 
 Environment variables:
@@ -65,7 +65,7 @@ Environment variables:
 |---|---|---|
 | `PORT` | `3000` | HTTP port |
 | `OLLAMA_HOST` | `http://localhost:11434` | Ollama server |
-| `OLLAMA_MODEL` | `qwen2.5:3b` | Model for narrative and Ask |
+| `OLLAMA_MODEL` | `qwen2.5:1.5b` | Model for narrative and Ask |
 | `OLLAMA_TIMEOUT_MS` | `90000` | Model call timeout |
 | `OLLAMA_DISABLED` | unset | Set to `1` for rule-based answers only |
 | `MAX_CONCURRENT` | `3` | Parallel analyses |

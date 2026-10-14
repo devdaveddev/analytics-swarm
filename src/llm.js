@@ -6,7 +6,7 @@
 import { assertPublicUrl } from './scrapers.js';
 
 const OLLAMA_HOST = process.env.OLLAMA_HOST || 'http://localhost:11434';
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'qwen2.5:3b';
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'qwen2.5:1.5b';
 
 export const PROVIDERS = {
   ollama: { label: 'Ollama (local, default)', needsKey: false, defaultModel: OLLAMA_MODEL },
