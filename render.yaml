@@ -1,0 +1,16 @@
+# Render Blueprint: connect this repo in the Render dashboard (New > Blueprint) and it deploys from here.
+services:
+  - type: web
+    name: analytics-swarm
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      # Render has no local Ollama. Keep the narrative and ask features on rule-based answers.
+      # To use a model, set OLLAMA_HOST to a reachable Ollama server and remove this line.
+      - key: OLLAMA_DISABLED
+        value: "1"

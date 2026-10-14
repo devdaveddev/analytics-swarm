@@ -1,0 +1,43 @@
+# Analytics Swarm
+
+A multi-agent business analytics dashboard. Enter company data (metrics, reviews, documents, optional live
+source URLs). Seven agents run in order: collector, parser, analyzer, refiner, lead generation, consultant and
+visualizer. The result is an interactive dashboard with KPIs, a revenue outlook, a relationship graph, sentiment,
+insights, prioritised recommendations, an "Ask your data" panel, and a feedback loop that learns from corrections.
+
+## Run locally
+
+```
+npm start            # http://localhost:3000
+npm test
+```
+
+Optional local AI narrative and Q&A via [Ollama](https://ollama.com):
+
+```
+ollama serve
+ollama pull qwen2.5:3b
+```
+
+Environment variables:
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `PORT` | `3000` | HTTP port |
+| `OLLAMA_HOST` | `http://localhost:11434` | Ollama server |
+| `OLLAMA_MODEL` | `qwen2.5:3b` | Model for narrative and Ask |
+| `OLLAMA_TIMEOUT_MS` | `90000` | Model call timeout |
+| `OLLAMA_DISABLED` | unset | Set to `1` for rule-based answers only |
+| `MAX_CONCURRENT` | `3` | Parallel analyses |
+
+## Deploy on Render
+
+`render.yaml` is a Render Blueprint. In the Render dashboard choose **New > Blueprint**, select this repository,
+and deploy. The health check is `/api/health`. The free plan has no persistent disk, so feedback and jobs reset
+on redeploy and the instance sleeps when idle.
+
+## Notes
+
+- There is no login. Anyone who can reach the server can run analyses and submit feedback.
+- Live source fetching blocks private and loopback addresses and honours robots.txt.
+- The revenue outlook is a straight-line trend, not a seasonal forecast.

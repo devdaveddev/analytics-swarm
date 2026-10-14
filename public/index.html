@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Analytics Swarm — Business dashboards from an agent team</title>
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="topbar">
+    <a class="brand" href="/"><svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="2" width="9" height="9" rx="2.5"/><rect x="13" y="2" width="9" height="5" rx="2.5"/><rect x="13" y="9" width="9" height="13" rx="2.5"/><rect x="2" y="13" width="9" height="9" rx="2.5"/></svg> <span>Analytics Swarm</span></a>
+    <nav><a href="/new">New analysis</a></nav>
+  </header>
+
+  <main id="main" class="container">
+    <section class="hero">
+      <p class="eyebrow">Multi-agent business intelligence</p>
+      <h1>Paste your company data. Get a live dashboard built by six agents.</h1>
+      <p class="lead">
+        A control agent runs a team of specialists in sequence: they parse and research your data,
+        analyse performance, refine it, plan lead generation, consult on market gaps and customer sentiment,
+        and finally render an interactive dashboard.
+      </p>
+      <div class="cta-row">
+        <a class="btn" href="/new?sample=1">Try with sample data</a>
+        <a class="btn ghost" href="/new">Enter my company</a>
+      </div>
+    </section>
+
+    <section>
+      <h2 class="section-title">How the swarm works</h2>
+      <ol class="pipeline">
+        <li class="stage"><span class="stage-num">1</span><h3>Parser &amp; Researcher</h3><p>Normalises the input, redacts personal data, attaches industry benchmarks, scores data quality.</p></li>
+        <li class="stage"><span class="stage-num">2</span><h3>Analyzer</h3><p>Computes monthly KPIs (ARPU, churn, CAC, conversion), period trends and anomalies.</p></li>
+        <li class="stage"><span class="stage-num">3</span><h3>Refiner</h3><p>Corrects impossible values, scores confidence and ranks insights against benchmarks.</p></li>
+        <li class="stage"><span class="stage-num">4</span><h3>Lead Generation &amp; Marketing</h3><p>Maps the funnel, flags wasteful spend, suggests channels and target keywords.</p></li>
+        <li class="stage"><span class="stage-num">5</span><h3>Consultant</h3><p>Scores review sentiment by feature area, finds market gaps and prioritises fixes.</p></li>
+        <li class="stage"><span class="stage-num">6</span><h3>Visualizer</h3><p>Builds the interactive dashboard: KPI tiles, charts, insights and drill-down reviews.</p></li>
+      </ol>
+    </section>
+
+    <section class="card guardrails">
+      <h2>Built-in guardrails</h2>
+      <ul>
+        <li>Strict input validation: field types, ranges, row and review limits.</li>
+        <li>Personal data (emails, phone numbers, card-like numbers) redacted before any analysis.</li>
+        <li>Review text containing instructions to the AI is flagged and kept out of AI prompts.</li>
+        <li>Each agent's output is checked for missing summaries and non-finite numbers.</li>
+        <li>Per-agent timeouts, one automatic retry, and a cap on concurrent analyses.</li>
+      </ul>
+    </section>
+  </main>
+  <script src="/js/common.js"></script>
+</body>
+</html>
