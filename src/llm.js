@@ -19,21 +19,45 @@ export const defaultLLM = () => ({ provider: 'ollama', model: OLLAMA_MODEL, base
 export function llmAvailable(llm = defaultLLM()) {
   const provider = llm?.provider ?? 'ollama';
   if (provider === 'ollama') return process.env.OLLAMA_DISABLED !== '1';
-  return Boolean(PROVIDERS[provider] && llm.apiKey);
+  return Object.hasOwn(PROVIDERS, provider) && Boolean(llm.apiKey);
 }
 
-async function post(url, headers, body, timeoutMs) {
+// Removes the key (and anything shaped like one) from text that may be shown to the user.
+function redact(text, secret) {
+  let out = String(text);
+  if (secret) out = out.split(secret).join('[redacted]');
+  return out.replace(/\b(sk|key|tok)-[A-Za-z0-9_-]{6,}/g, '[redacted]').replace(/Bearer\s+\S+/gi, 'Bearer [redacted]');
+}
+
+// redirect: 'error' keeps the API key from being forwarded to another host.
+async function post(url, headers, body, timeoutMs, secret = '') {
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'content-type': 'application/json', ...headers },
     body: JSON.stringify(body),
+    redirect: 'error',
     signal: AbortSignal.timeout(timeoutMs),
   });
   if (!res.ok) {
-    const detail = (await res.text().catch(() => '')).slice(0, 200);
-    throw new Error(`${url.includes('11434') ? 'Ollama' : 'LLM'} HTTP ${res.status}${detail ? `: ${detail.replace(/(key|token)[^,}]*/gi, '[redacted]')}` : ''}`);
+    const detail = redact((await res.text().catch(() => '')).slice(0, 300), secret);
+    const name = url.includes('11434') ? 'Ollama' : 'LLM';
+    throw Object.assign(new Error(`${name} HTTP ${res.status}${detail ? `: ${detail}` : ''}`), { status: res.status });
   }
   return res.json();
+}
+
+// OpenAI's newer reasoning models reject max_tokens and a custom temperature and want max_completion_tokens.
+// Older models and most compatible servers (OpenRouter, vLLM, LM Studio) accept max_tokens, so try that first.
+async function openaiChat(base, llm, model, messages, maxTokens, timeoutMs) {
+  const url = `${base}/chat/completions`;
+  const headers = { authorization: `Bearer ${llm.apiKey}` };
+  try {
+    return await post(url, headers, { model, max_tokens: maxTokens, temperature: 0.3, messages }, timeoutMs, llm.apiKey);
+  } catch (err) {
+    if (err.status !== 400 || !/max_completion_tokens|max_tokens|temperature/i.test(err.message)) throw err;
+    // Reasoning tokens count toward the limit, so allow more room than the visible answer needs.
+    return post(url, headers, { model, max_completion_tokens: Math.max(maxTokens * 4, 1024), messages }, timeoutMs, llm.apiKey);
+  }
 }
 
 export async function completeWithLLM({ system, user, maxTokens = 600 }, llm = defaultLLM()) {
@@ -41,12 +65,13 @@ export async function completeWithLLM({ system, user, maxTokens = 600 }, llm = d
   const provider = llm?.provider ?? 'ollama';
   const timeoutMs = Number(process.env.OLLAMA_TIMEOUT_MS) || 90_000;
   const model = llm.model || PROVIDERS[provider].defaultModel;
+  const messages = [{ role: 'system', content: system }, { role: 'user', content: user }];
 
   if (provider === 'ollama') {
     const data = await post(`${OLLAMA_HOST}/api/chat`, {}, {
       model,
       stream: false,
-      messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
+      messages,
       options: { num_predict: maxTokens, temperature: 0.3 },
     }, timeoutMs);
     return data.message?.content?.trim() || null;
@@ -55,20 +80,16 @@ export async function completeWithLLM({ system, user, maxTokens = 600 }, llm = d
   if (provider === 'openai') {
     const base = (llm.baseUrl || PROVIDERS.openai.defaultBaseUrl).replace(/\/+$/, '');
     await assertPublicUrl(base); // user-supplied URL: block private and loopback addresses
-    const data = await post(`${base}/chat/completions`, { authorization: `Bearer ${llm.apiKey}` }, {
-      model,
-      max_tokens: maxTokens,
-      temperature: 0.3,
-      messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
-    }, timeoutMs);
+    const data = await openaiChat(base, llm, model, messages, maxTokens, timeoutMs);
     return data.choices?.[0]?.message?.content?.trim() || null;
   }
 
+  // Anthropic Messages API: system is a top-level field, and the reply is a list of typed content blocks.
   const data = await post('https://api.anthropic.com/v1/messages', { 'x-api-key': llm.apiKey, 'anthropic-version': '2023-06-01' }, {
     model,
     max_tokens: maxTokens,
     system,
     messages: [{ role: 'user', content: user }],
-  }, timeoutMs);
+  }, timeoutMs, llm.apiKey);
   return (data.content ?? []).filter((b) => b.type === 'text').map((b) => b.text).join('\n').trim() || null;
 }
