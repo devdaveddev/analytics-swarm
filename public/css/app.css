@@ -467,3 +467,8 @@ img, svg { max-width: 100%; }
 .chart .proj-line { stroke-dasharray: 6 5; opacity: .85; }
 .chart circle.proj { fill: var(--surface); stroke: var(--accent); stroke-width: 2; }
 @media (max-width: 760px) { .ask-form .btn { width: 100%; } }
+
+/* Footer */
+.site-footer { border-top: 1px solid var(--border); padding: 20px 16px 28px; text-align: center; color: var(--muted); font-size: .9rem; }
+.site-footer p { margin: 0; }
+.site-footer a { color: var(--accent); font-weight: 600; }
