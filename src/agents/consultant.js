@@ -105,7 +105,9 @@ export async function consultantAgent(ctx) {
         topRecommendations: recommendations.slice(0, 5).map((r) => ({ area: r.area, action: r.action })),
       };
       narrative = await completeWithLLM({
-        system: SYSTEM_PROMPT,
+        system: ctx.input.guidance
+          ? `${SYSTEM_PROMPT}\nExtra guidance from the user (follow it unless it conflicts with the rules above):\n${ctx.input.guidance}`
+          : SYSTEM_PROMPT,
         user: `${JSON.stringify(payload)}\n<data>\n${samples.join('\n---\n')}\n</data>`,
       }, ctx.input.llm);
       llmStatus = narrative ? (ctx.input.llm?.provider ?? 'ollama') : 'model returned no text';

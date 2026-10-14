@@ -10,6 +10,7 @@ import { refinerAgent } from './agents/refiner.js';
 import { leadgenAgent } from './agents/leadgen.js';
 import { consultantAgent } from './agents/consultant.js';
 import { forecasterAgent } from './agents/forecaster.js';
+import { makeCustomAgent } from './agents/custom.js';
 import { visualizerAgent } from './agents/visualizer.js';
 import { AGENT_META, DEFAULT_ORDER } from './workflow.js';
 
@@ -25,8 +26,15 @@ const IMPLEMENTATIONS = {
 };
 
 // Turns an ordered list of agent names into runnable steps. The order has already been validated.
-export function buildPipeline(order) {
-  return order.map((name) => ({ name, label: AGENT_META[name].label, role: AGENT_META[name].role, ...IMPLEMENTATIONS[name] }));
+export function buildPipeline(order, customAgents = []) {
+  const custom = new Map(customAgents.map((c) => [c.id, c]));
+  return order.map((name) => {
+    const def = custom.get(name);
+    if (def) {
+      return { name, label: def.name, role: `Custom agent: ${def.prompt.slice(0, 90)}`, run: makeCustomAgent(def), timeoutMs: 120_000 };
+    }
+    return { name, label: AGENT_META[name].label, role: AGENT_META[name].role, ...IMPLEMENTATIONS[name] };
+  });
 }
 
 export const PIPELINE = buildPipeline(DEFAULT_ORDER);
@@ -71,7 +79,7 @@ export class ControlAgent {
     if (this.active >= this.maxConcurrent) throw new CapacityError();
     this.#evict();
 
-    const pipeline = buildPipeline(verdict.value.workflow);
+    const pipeline = buildPipeline(verdict.value.workflow, verdict.value.customAgents);
     const now = new Date().toISOString();
     const job = {
       id: newId(),

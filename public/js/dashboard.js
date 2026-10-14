@@ -450,8 +450,8 @@
     const path = (list, offset = 0) => list.map((p, i) => `${i ? 'L' : 'M'}${x(i + offset).toFixed(1)},${y(p.y).toFixed(1)}`).join(' ');
     const projected = pts.slice(firstProjected);
     const band = [
-      ...projected.map((p, i) => `${i ? 'L' : 'M'}${x(firstProjected + i).toFixed(1)},${y(p.high).toFixed(1)}`),
-      ...projected.slice().reverse().map((p, i) => `L${x(pts.length - 1 - i).toFixed(1)},${y(p.low).toFixed(1)}`),
+      ...projected.map((p, i) => `${i ? 'L' : 'M'}${x(firstProjected + i).toFixed(1)},${y(p.high ?? p.y).toFixed(1)}`),
+      ...projected.slice().reverse().map((p, i) => `L${x(pts.length - 1 - i).toFixed(1)},${y(p.low ?? p.y).toFixed(1)}`),
     ].join(' ') + ' Z';
     const dots = pts.map((p, i) => `<circle class="${p.projected ? 'proj' : ''}" cx="${x(i).toFixed(1)}" cy="${y(p.y).toFixed(1)}" r="4"><title>${esc(p.x)}: ${esc(fmt(p.y, 'currency', cur))}${p.projected ? ` (range ${esc(fmt(p.low, 'currency', cur))} – ${esc(fmt(p.high, 'currency', cur))})` : ''}</title></circle>`).join('');
     const labels = pts.map((p, i) => `<text class="axis" text-anchor="middle" x="${x(i).toFixed(1)}" y="${H - 14}">${esc(p.x)}</text>`).join('');
@@ -509,6 +509,9 @@
       ids.forEach((id) => used.add(id));
       return { ...sec, items: ids.map((id) => byId[id]).filter((w) => w && !isEmpty(w)) };
     });
+    const customItems = s.widgets.filter((w) => w.custom);
+    customItems.forEach((w) => used.add(w.id));
+    sections.splice(3, 0, { id: 'custom', title: 'Custom agents', items: customItems });
     const rest = s.widgets.filter((w) => !used.has(w.id) && !isEmpty(w));
     if (rest.length) sections.push({ id: 'more', title: 'More', items: rest });
     return sections.filter((sec) => sec.items.length);

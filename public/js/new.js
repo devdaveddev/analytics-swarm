@@ -5,9 +5,16 @@
   const configEl = document.getElementById('run-config');
 
   // The workflow and model chosen on the Agents and API Key pages travel with each analysis.
+  const savedCustoms = () => {
+    const c = store.read('swarm-custom-agents', []);
+    return Array.isArray(c) ? c.filter((x) => x && x.id && x.name && x.prompt) : [];
+  };
+  // A saved order may mention a custom agent that was deleted since; drop those so the run is not rejected.
   const savedWorkflow = () => {
     const w = store.read(WORKFLOW_KEY, null);
-    return Array.isArray(w) && w.length ? w : null;
+    if (!Array.isArray(w) || !w.length) return null;
+    const known = new Set(savedCustoms().map((c) => c.id));
+    return w.filter((name) => !name.startsWith('custom-') || known.has(name));
   };
   const savedLLM = () => store.read(LLM_KEY, { provider: 'ollama' });
 
@@ -51,7 +58,12 @@
     try {
       const data = Object.fromEntries(new FormData(form));
       const workflow = savedWorkflow();
-      if (workflow) data.workflow = workflow;
+      if (workflow) {
+        data.workflow = workflow;
+        data.customAgents = savedCustoms().filter((c) => workflow.includes(c.id));
+      }
+      const guidance = store.read('swarm-guidance', '');
+      if (typeof guidance === 'string' && guidance.trim()) data.guidance = guidance;
       data.llm = savedLLM();
       const job = await api('/api/jobs', { method: 'POST', body: JSON.stringify(data) });
       go(job.links.run);

@@ -64,7 +64,27 @@ export const AGENT_META = {
 
 export const DEFAULT_ORDER = ['collector', 'parser', 'analyzer', 'refiner', 'leadgen', 'forecaster', 'consultant', 'visualizer'];
 
-export function validateWorkflow(order) {
+// Custom agents are user-defined prompts. They read the analysis, so they need the parser and refiner first.
+export const CUSTOM_ID = /^custom-[a-z0-9]{3,12}$/;
+export const MAX_CUSTOM_AGENTS = 5;
+
+export function metaWith(customAgents = []) {
+  const meta = { ...AGENT_META };
+  for (const c of customAgents) {
+    meta[c.id] = {
+      label: c.name,
+      role: `Custom agent: ${c.prompt.slice(0, 90)}`,
+      requires: ['parser', 'refiner'],
+      softAfter: [],
+      optional: true,
+      custom: true,
+    };
+  }
+  return meta;
+}
+
+export function validateWorkflow(order, customAgents = []) {
+  const meta = metaWith(customAgents);
   const errors = [];
   const warnings = [];
   if (!Array.isArray(order) || order.length === 0 || order.length > 20) {
@@ -73,29 +93,29 @@ export function validateWorkflow(order) {
 
   const seen = new Set();
   for (const name of order) {
-    if (typeof name !== 'string' || !Object.hasOwn(AGENT_META, name)) {
+    if (typeof name !== 'string' || !Object.hasOwn(meta, name)) {
       errors.push(`Unknown agent "${String(name).slice(0, 40)}".`);
     } else if (seen.has(name)) {
-      errors.push(`${AGENT_META[name].label} appears more than once.`);
+      errors.push(`${meta[name].label} appears more than once.`);
     }
     seen.add(name);
   }
   if (errors.length) return { ok: false, errors, warnings };
 
-  for (const [name, meta] of Object.entries(AGENT_META)) {
-    if (!meta.optional && !seen.has(name)) errors.push(`${meta.label} is required and cannot be removed.`);
+  for (const [name, m] of Object.entries(meta)) {
+    if (!m.optional && !seen.has(name)) errors.push(`${m.label} is required and cannot be removed.`);
   }
 
   const position = new Map(order.map((name, i) => [name, i]));
   for (const name of order) {
-    const meta = AGENT_META[name];
-    for (const dep of meta.requires) {
-      if (!position.has(dep)) errors.push(`${meta.label} needs ${AGENT_META[dep].label}, which is not in the workflow.`);
-      else if (position.get(dep) > position.get(name)) errors.push(`${meta.label} must run after ${AGENT_META[dep].label}.`);
+    const m = meta[name];
+    for (const dep of m.requires) {
+      if (!position.has(dep)) errors.push(`${m.label} needs ${meta[dep].label}, which is not in the workflow.`);
+      else if (position.get(dep) > position.get(name)) errors.push(`${m.label} must run after ${meta[dep].label}.`);
     }
-    for (const dep of meta.softAfter) {
+    for (const dep of m.softAfter) {
       if (position.has(dep) && position.get(dep) > position.get(name)) {
-        warnings.push(`${meta.label} runs before ${AGENT_META[dep].label}, so it will not use that output.`);
+        warnings.push(`${m.label} runs before ${meta[dep].label}, so it will not use that output.`);
       }
     }
   }

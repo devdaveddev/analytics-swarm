@@ -230,6 +230,16 @@ export async function visualizerAgent(ctx) {
         aspects: Object.keys(r.aspects),
       })),
     },
+    ...(ctx.stages ?? [])
+      .filter((id) => id.startsWith('custom-') && ctx[id])
+      .map((id) => ({
+        id,
+        type: 'text',
+        size: 'wide',
+        custom: true,
+        title: ctx[id].title,
+        body: ctx[id].text || ctx[id].note || ctx[id].summary,
+      })),
     {
       id: 'summary',
       type: 'text',

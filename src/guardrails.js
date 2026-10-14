@@ -1,6 +1,6 @@
 // Guardrails: input validation, PII redaction, prompt-injection flagging and output checks.
 import { round } from './util.js';
-import { DEFAULT_ORDER, validateWorkflow } from './workflow.js';
+import { CUSTOM_ID, DEFAULT_ORDER, MAX_CUSTOM_AGENTS, validateWorkflow } from './workflow.js';
 
 export const INDUSTRIES = ['saas', 'ecommerce', 'retail', 'services', 'manufacturing', 'healthcare', 'fintech', 'general'];
 
@@ -215,6 +215,34 @@ export function parseDocuments(source, errors, warnings) {
   return docs;
 }
 
+// Custom agents: a name and the instructions (prompt) the agent runs with. Defined in the browser, sent per analysis.
+export function parseCustomAgents(raw, errors) {
+  if (raw === undefined || raw === null) return [];
+  if (!Array.isArray(raw)) {
+    errors.push('Custom agents must be a list.');
+    return [];
+  }
+  if (raw.length > MAX_CUSTOM_AGENTS) {
+    errors.push(`At most ${MAX_CUSTOM_AGENTS} custom agents per analysis.`);
+    return [];
+  }
+  const seen = new Set();
+  const out = [];
+  raw.forEach((c, i) => {
+    const label = `Custom agent ${i + 1}`;
+    const id = isPlainObject(c) ? String(c.id ?? '') : '';
+    const name = isPlainObject(c) ? sanitizeText(c.name, 40) : '';
+    const prompt = isPlainObject(c) ? sanitizeText(c.prompt, 2000) : '';
+    if (!CUSTOM_ID.test(id)) errors.push(`${label}: invalid id.`);
+    else if (seen.has(id)) errors.push(`${label}: duplicate id.`);
+    if (name.length < 2) errors.push(`${label}: give it a name of at least 2 characters.`);
+    if (prompt.length < 10) errors.push(`${label}: add instructions of at least 10 characters so the agent knows what to do.`);
+    seen.add(id);
+    out.push({ id, name, prompt });
+  });
+  return out;
+}
+
 // LLM settings arrive from the browser with each request. Keys are kept in memory only.
 export function parseLLM(raw, errors, warnings) {
   const fallback = { provider: 'ollama', model: '', baseUrl: '', apiKey: '' };
@@ -267,7 +295,8 @@ export function validateCompanyInput(raw) {
   const sourceUrls = parseSourceUrls(raw.sourceUrls, errors);
   const documents = parseDocuments(raw.documents, errors, warnings);
   const workflow = raw.workflow === undefined ? DEFAULT_ORDER : raw.workflow;
-  const flow = validateWorkflow(workflow);
+  const customAgents = parseCustomAgents(raw.customAgents, errors);
+  const flow = validateWorkflow(workflow, errors.length ? [] : customAgents);
   errors.push(...flow.errors);
   warnings.push(...flow.warnings);
   const llm = parseLLM(raw.llm, errors, warnings);
@@ -294,6 +323,8 @@ export function validateCompanyInput(raw) {
       sourceUrls,
       documents,
       workflow: [...workflow],
+      customAgents,
+      guidance: sanitizeText(raw.guidance, 1000),
       llm,
     },
   };

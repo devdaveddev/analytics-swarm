@@ -14,6 +14,15 @@ with KPIs, a revenue outlook, a relationship graph, sentiment, insights, priorit
 | **API Key** (`/settings`) | Choose the model provider. Ollama is the default and needs no key. OpenAI-compatible and Anthropic are available with a key. |
 | **Agents** (`/agents`) | n8n-style editor: drag agents to change the order, remove optional ones, add them back. The order is validated against each agent's dependencies. |
 
+### Custom agents and guidance
+
+On the Agents page you can create up to five **custom agents**. Each has a name and the instructions (prompt) it runs with, and the
+dashboard shows its answer in a "Custom agents" section. A custom agent sees the KPIs, insights, sentiment, recommendations, forecast and
+document summaries from the agents before it, plus notes from earlier custom agents. Your instructions are passed as trusted text; the
+analysis data is passed separately and marked untrusted, so text inside reviews or documents cannot act as instructions. Custom agents need a
+model (Ollama or an API key); without one they are skipped and the dashboard says so. A **guidance** box adds your own instructions to the
+Consultant's written summary. Custom agents and guidance are stored in the browser and sent with each analysis.
+
 API keys are stored in the browser only and sent with each analysis. The server keeps them in memory for that job,
 never writes them to disk, and never returns them. A saved workflow order is also kept in the browser.
 

@@ -47,9 +47,46 @@
       <div id="palette" class="palette"></div>
     </section>
 
+    <section class="card" aria-labelledby="custom-title">
+      <h2 id="custom-title">Create a custom agent</h2>
+      <p class="muted small">A custom agent runs your own instructions on the analysis and adds its answer to the dashboard. Tell it what role to play, what to look at, and how to answer. It sees the KPIs, insights, sentiment, recommendations, forecast and document summaries from the agents before it, plus notes from earlier custom agents. It needs a model, so turn on Ollama or add a key on the API Key page. <span id="custom-count"></span></p>
+      <form id="custom-form" class="form" novalidate>
+        <input type="hidden" name="id">
+        <label>Agent name
+          <input name="name" maxlength="40" autocomplete="off" placeholder="e.g. Pricing strategist">
+        </label>
+        <label>Instructions (the prompt this agent runs with)
+          <textarea name="prompt" rows="5" maxlength="2000" placeholder="Act as a pricing strategist. Using the KPIs and customer feedback, propose three pricing experiments. For each, give the change, the metric to watch, and the main risk."></textarea>
+          <span class="counter muted small" id="prompt-count">0 / 2000</span>
+        </label>
+        <div class="templates" role="group" aria-label="Start from an example">
+          <span class="muted small">Start from an example:</span>
+          <button type="button" class="btn-mini" data-template="pricing">Pricing strategist</button>
+          <button type="button" class="btn-mini" data-template="risk">Risk reviewer</button>
+          <button type="button" class="btn-mini" data-template="brief">Executive brief</button>
+        </div>
+        <p class="form-error" id="custom-error" role="alert"></p>
+        <div class="form-actions">
+          <button type="button" class="btn ghost" id="custom-cancel" hidden>Cancel edit</button>
+          <button type="submit" class="btn" id="custom-submit">Add to workflow</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="card" aria-labelledby="guidance-title">
+      <h2 id="guidance-title">Guidance for the Consultant's summary</h2>
+      <p class="muted small">Optional. Tell the Consultant how to write its summary, such as who it is for or what to lead with. It is added to the Consultant's instructions.</p>
+      <div class="form">
+        <label class="visually-hidden" for="guidance">Guidance for the Consultant</label>
+        <textarea id="guidance" rows="3" maxlength="1000" placeholder="e.g. Write for a CFO. Lead with cash impact and keep it to five bullets."></textarea>
+      </div>
+      <p class="muted small" id="guidance-status" role="status" aria-live="polite"></p>
+    </section>
+
     <section class="card">
       <h2>How ordering works</h2>
       <ul class="rules">
+        <li><strong>Custom</strong> agents read the analysis, so they must come after Parser and Refiner and before the Visualizer.</li>
         <li><strong>Required</strong> agents cannot be removed: Parser, Analyzer, Refiner, Consultant and Visualizer.</li>
         <li><strong>Needs</strong> means the agent reads another agent's output, so that agent must come first.</li>
         <li>An amber note means the order is allowed but the agent will not use an output that has not been produced yet.</li>
