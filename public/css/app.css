@@ -472,3 +472,69 @@ img, svg { max-width: 100%; }
 .site-footer { border-top: 1px solid var(--border); padding: 20px 16px 28px; text-align: center; color: var(--muted); font-size: .9rem; }
 .site-footer p { margin: 0; }
 .site-footer a { color: var(--accent); font-weight: 600; }
+
+/* v2: dark-first by default; light only when chosen with the theme toggle */
+:root:not([data-theme="light"]) {
+  --bg: var(--grey-950);
+  --surface: var(--grey-900);
+  --surface-2: var(--grey-800);
+  --surface-hover: hsl(216 18% 25%);
+  --text: hsl(210 20% 95%);
+  --muted: hsl(212 12% 70%);
+  --border: hsl(216 16% 24%);
+  --border-strong: hsl(215 14% 34%);
+  --accent: var(--blue-400);
+  --accent-hover: var(--blue-300);
+  --accent-text: var(--grey-950);
+  --accent-soft: hsl(213 94% 68% / 0.14);
+  --success: var(--green-400);
+  --success-soft: hsl(148 60% 52% / 0.14);
+  --info: var(--blue-400);
+  --warning: hsl(40 90% 62%);
+  --danger: var(--red-300);
+  --neutral: hsl(212 12% 62%);
+  --focus-ring: hsl(213 94% 68% / 0.55);
+  --shadow: none;
+  --btn-text: var(--grey-950);
+}
+:root:not([data-theme="light"]) body { background: var(--bg); }
+
+.theme-toggle {
+  display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px;
+  border-radius: 10px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text);
+  cursor: pointer; margin-left: 12px;
+}
+.theme-toggle:hover { background: var(--surface-hover); }
+.theme-toggle .icon { width: 18px; height: 18px; margin: 0; }
+
+/* Agent flow strip (landing) */
+.flow-section { margin: 8px 0 8px; }
+.flow { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0; position: relative; }
+.flow li { position: relative; text-align: center; padding: 12px 6px; }
+.flow li::after {
+  content: ""; position: absolute; top: 28px; left: 50%; width: 100%; height: 2px;
+  background: linear-gradient(90deg, var(--accent), var(--success));
+  opacity: .5;
+}
+.flow li:last-child::after { display: none; }
+.flow .node {
+  display: inline-grid; place-items: center; width: 44px; height: 44px; border-radius: 50%;
+  background: var(--surface); border: 2px solid var(--accent); color: var(--text); font-weight: 700;
+  position: relative; z-index: 1;
+}
+.flow li:nth-child(3n+2) .node { border-color: var(--success); }
+.flow li:nth-child(3n) .node { border-color: var(--neutral); }
+.flow .name { display: block; margin-top: 10px; font-size: .85rem; font-weight: 600; color: var(--text); }
+.flow .sub { display: block; font-size: .75rem; color: var(--muted); }
+
+@media (max-width: 760px) {
+  .flow { grid-template-columns: 1fr; gap: 4px; }
+  .flow li { display: grid; grid-template-columns: 44px 1fr; text-align: left; align-items: center; column-gap: 14px; padding: 6px 0; }
+  .flow li::after { top: auto; bottom: -8px; left: 22px; width: 2px; height: 16px; background: var(--border-strong); opacity: 1; }
+  .flow .node { grid-row: span 2; }
+  .flow .name, .flow .sub { margin: 0; }
+}
+@media (min-width: 900px) {
+  .pipeline { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+.hero { margin: 0; border-radius: 20px; }
