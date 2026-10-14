@@ -1,5 +1,5 @@
 (() => {
-  const { esc, fmt, deltaText, api } = window.Bm;
+  const { esc, fmt, deltaText, api, store } = window.Bm;
   const LIVE_INTERVAL_MS = 60_000;
   const LABELS = ['positive', 'neutral', 'negative'];
   const params = new URLSearchParams(location.search);
@@ -16,6 +16,8 @@
     toast: '',
     answer: null,
     asking: false,
+    history: [],
+    temperature: Number(store.read('swarm-llm', {}).temperature ?? 0.3),
   };
 
   if (!state.id) {
@@ -32,9 +34,14 @@
 
   // One delegated listener survives every re-render.
   root.addEventListener('click', async (e) => {
-    const el = e.target.closest('[data-sentiment],[data-aspect],[data-refresh],[data-clear],[data-live],[data-teach],[data-vote-area]');
+    const el = e.target.closest('[data-sentiment],[data-aspect],[data-refresh],[data-clear],[data-live],[data-teach],[data-vote-area],[data-ask-clear]');
     if (!el) return;
     const d = el.dataset;
+    if ('askClear' in d) {
+      state.history = [];
+      state.answer = null;
+      return render();
+    }
     if ('refresh' in d) return refreshNow();
     if ('live' in d) return setLive(!state.live);
     if ('teach' in d) return teach(Number(d.teach), d.label);
@@ -54,13 +61,28 @@
     state.asking = true;
     render();
     try {
-      state.answer = await api(`/api/jobs/${encodeURIComponent(state.id)}/ask`, { method: 'POST', body: JSON.stringify({ question }) });
+      const res = await api(`/api/jobs/${encodeURIComponent(state.id)}/ask`, {
+        method: 'POST',
+        body: JSON.stringify({ question, temperature: state.temperature, history: state.history.slice(-4) }),
+      });
+      if (res.answer) {
+        state.history = [...state.history, { q: question, a: res.answer, source: res.source, temperature: res.temperature }].slice(-8);
+        state.answer = null;
+      } else {
+        state.answer = { error: res.error ?? 'No answer.', needsModel: Boolean(res.needsModel) };
+      }
     } catch (err) {
-      state.answer = { answer: err.message, source: 'rules' };
+      state.answer = { error: err.message };
     }
     state.asking = false;
     render();
     document.getElementById('ask-input')?.focus();
+  });
+
+  root.addEventListener('input', (e) => {
+    if (e.target.id !== 'ask-temp') return;
+    state.temperature = Number(e.target.value);
+    document.getElementById('ask-temp-out').textContent = state.temperature.toFixed(1);
   });
 
   root.addEventListener('mouseover', (e) => {
@@ -464,7 +486,8 @@
   }
 
   function healthBanner(s) {
-    const h = s.health ?? { status: 'healthy', label: 'No critical issues' };
+    const h = s.health;
+    if (!h) return '';
     const text = { attention: 'Needs attention', watch: 'Watch closely', healthy: 'Healthy' }[h.status] ?? 'Status';
     return `<section class="health health-${esc(h.status)}" aria-label="Overall status">
       <span class="health-dot" aria-hidden="true"></span>
@@ -474,15 +497,27 @@
 
   function askPanel() {
     const a = state.answer;
+    const thread = state.history
+      .map((h) => `<div class="turn"><p class="q">${esc(h.q)}</p><p class="a">${esc(h.a)}</p>
+        <p class="muted small">${esc(h.source)} · temperature ${esc(Number(h.temperature).toFixed(1))}</p></div>`)
+      .join('');
+    const problem = a?.error
+      ? `<div class="notice error" role="alert">${esc(a.error)}${a.needsModel ? ' <a href="/settings">Open the API Key page</a>' : ''}</div>`
+      : '';
     return `<section class="card ask" aria-labelledby="ask-title">
       <h2 id="ask-title">Ask your data</h2>
+      ${thread ? `<div class="thread" aria-live="polite">${thread}</div><button type="button" class="btn-mini" data-ask-clear>Clear conversation</button>` : ''}
       <form data-ask class="ask-form">
         <label class="visually-hidden" for="ask-input">Question about this dashboard</label>
         <input id="ask-input" name="question" type="text" maxlength="500" placeholder="e.g. Why is churn high? What should we fix first?" autocomplete="off" required>
         <button class="btn" type="submit" ${state.asking ? 'disabled' : ''}>${state.asking ? 'Thinking…' : 'Ask'}</button>
       </form>
-      <p class="muted small">Answers use only this dashboard's figures. Try “What is the top risk?” or “Which KPI changed most?”</p>
-      ${a ? `<div class="answer" role="status"><p>${esc(a.answer)}</p><p class="muted small">Source: ${a.source === 'ollama' ? 'local model' : 'rule-based'}</p></div>` : ''}
+      <div class="temp-row">
+        <label for="ask-temp">Temperature <output id="ask-temp-out">${state.temperature.toFixed(1)}</output></label>
+        <input id="ask-temp" type="range" min="0" max="1" step="0.1" value="${state.temperature}" aria-describedby="ask-temp-help">
+        <span id="ask-temp-help" class="muted small">Lower sticks closely to the figures. Higher gives more varied wording and ideas.</span>
+      </div>
+      ${problem}
     </section>`;
   }
 

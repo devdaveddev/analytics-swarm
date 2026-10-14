@@ -245,7 +245,7 @@ export function parseCustomAgents(raw, errors) {
 
 // LLM settings arrive from the browser with each request. Keys are kept in memory only.
 export function parseLLM(raw, errors, warnings) {
-  const fallback = { provider: 'ollama', model: '', baseUrl: '', apiKey: '' };
+  const fallback = { provider: 'ollama', model: '', baseUrl: '', apiKey: '', temperature: 0.3 };
   if (raw === undefined || raw === null) return fallback;
   if (!isPlainObject(raw)) {
     errors.push('LLM settings must be an object.');
@@ -260,7 +260,13 @@ export function parseLLM(raw, errors, warnings) {
   if (baseUrl && !/^https?:\/\//i.test(baseUrl)) errors.push('LLM base URL must start with http:// or https://.');
   const apiKey = typeof raw.apiKey === 'string' ? raw.apiKey.trim().slice(0, 300) : '';
   if (provider !== 'ollama' && !apiKey) warnings.push(`No API key for ${provider}; the narrative and Ask will use rule-based answers.`);
-  return { provider, model: sanitizeText(raw.model, 100), baseUrl, apiKey };
+  let temperature = 0.3;
+  if (raw.temperature !== undefined && raw.temperature !== null && raw.temperature !== '') {
+    const t = Number(raw.temperature);
+    if (!Number.isFinite(t) || t < 0 || t > 1) errors.push('Temperature must be a number between 0 and 1.');
+    else temperature = t;
+  }
+  return { provider, model: sanitizeText(raw.model, 100), baseUrl, apiKey, temperature };
 }
 
 export function validateCompanyInput(raw) {

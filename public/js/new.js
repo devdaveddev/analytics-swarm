@@ -74,6 +74,77 @@
     }
   });
 
+  // ----- File upload: spreadsheets and documents fill the form instead of typing.
+  const MAX_FILE = 4 * 1024 * 1024;
+  const fileList = document.getElementById('file-list');
+  const dropzone = document.getElementById('dropzone');
+  const fileInput = document.getElementById('file-input');
+  // The first uploaded reviews or documents replace the sample text. Later ones are added to it.
+  const uploaded = { reviews: false, documents: false };
+  const SAMPLE_NAME = 'Northwind Analytics';
+
+  const toBase64 = (file) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(',')[1] ?? '');
+    reader.onerror = () => reject(new Error('Could not read the file.'));
+    reader.readAsDataURL(file);
+  });
+
+  const addLine = (kind, text, state = 'ok') => {
+    const li = document.createElement('li');
+    li.className = `file-${state}`;
+    li.innerHTML = `<span class="tag ${state === 'ok' ? 'tone-good' : state === 'warn' ? '' : 'tone-bad'}">${kind}</span> ${text}`;
+    fileList.appendChild(li);
+  };
+
+  function applyItem(item) {
+    if (item.kind === 'metrics') {
+      form.elements.metrics.value = item.csv;
+      addLine('Metrics', `${esc(item.source)}: ${item.rows} month(s), columns ${esc(item.columns.join(', '))}${item.note ? ` (${esc(item.note)})` : ''}`);
+    } else if (item.kind === 'reviews') {
+      const field = form.elements.reviews;
+      field.value = uploaded.reviews && field.value.trim() ? `${field.value.trimEnd()}\n${item.lines.join('\n')}` : item.lines.join('\n');
+      uploaded.reviews = true;
+      addLine('Reviews', `${esc(item.source)}: ${item.count} review(s)${item.note ? ` (${esc(item.note)})` : ''}`);
+    } else {
+      const field = form.elements.documents;
+      const block = `# ${item.title}\n${item.text}`;
+      field.value = uploaded.documents && field.value.trim() ? `${field.value.trimEnd()}\n---\n${block}` : block;
+      uploaded.documents = true;
+      addLine('Document', `${esc(item.source)}: "${esc(item.title)}", ${item.words} words${item.note ? ` (${esc(item.note)})` : ''}`);
+    }
+  }
+
+  async function handleFiles(files) {
+    errorBox.hidden = true;
+    for (const file of files) {
+      if (file.size > MAX_FILE) { addLine('Too big', `${esc(file.name)} is larger than 4 MB.`, 'bad'); continue; }
+      try {
+        const result = await api('/api/parse-file', { method: 'POST', body: JSON.stringify({ name: file.name, data: await toBase64(file) }) });
+        result.items.forEach(applyItem);
+        result.skipped.forEach((s) => addLine('Skipped', `${esc(s.source)}: ${esc(s.reason)}`, 'warn'));
+      } catch (err) {
+        addLine('Failed', `${esc(file.name)}: ${esc(err.message)}`, 'bad');
+      }
+    }
+    if (form.elements.companyName.value === SAMPLE_NAME && fileList.querySelector('.file-ok')) {
+      addLine('Next', 'The company details below are still the sample. Update them, or use Clear all fields first.', 'warn');
+    }
+  }
+
+  fileInput.addEventListener('change', () => { handleFiles([...fileInput.files]); fileInput.value = ''; });
+  ['dragenter', 'dragover'].forEach((t) => dropzone.addEventListener(t, (e) => { e.preventDefault(); dropzone.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach((t) => dropzone.addEventListener(t, (e) => { e.preventDefault(); dropzone.classList.remove('over'); }));
+  dropzone.addEventListener('drop', (e) => handleFiles([...e.dataTransfer.files]));
+
+  document.getElementById('clear-fields').addEventListener('click', () => {
+    form.querySelectorAll('input[type=text], input:not([type]), input[type=number], textarea').forEach((el) => { if (el.name && el.name !== 'currency') el.value = ''; });
+    form.elements.industry.value = 'general';
+    uploaded.reviews = uploaded.documents = false;
+    fileList.innerHTML = '';
+    errorBox.hidden = true;
+  });
+
   // The Analysis Demo page always opens with the test data loaded.
   if (!form.elements.companyName.value) fillSample();
 })();

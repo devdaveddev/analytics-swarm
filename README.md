@@ -10,9 +10,28 @@ with KPIs, a revenue outlook, a relationship graph, sentiment, insights, priorit
 
 | Page | What it does |
 |---|---|
-| **Analysis Demo** (`/new`) | Opens with test data pre-filled. Edit it or paste your own, then run the swarm. |
+| **Analysis Demo** (`/new`) | Opens with test data pre-filled. Edit it, paste your own, or upload files, then run the swarm. |
 | **API Key** (`/settings`) | Choose the model provider. Ollama is the default and needs no key. OpenAI-compatible and Anthropic are available with a key. |
 | **Agents** (`/agents`) | n8n-style editor: drag agents to change the order, remove optional ones, add them back. The order is validated against each agent's dependencies. |
+
+### Uploading files
+
+The Analysis Demo form accepts **.csv, .tsv, .xlsx, .docx, .txt and .md** files (up to 4 MB each). A sheet with a month column and a revenue
+column fills the monthly metrics (customers, marketing spend, leads, conversions and churn are picked up when present, and common
+alternative column names are recognised). A sheet with a review, comment or feedback column adds reviews, with a rating column if there is one.
+Each sheet of an Excel workbook is classified on its own, and Excel date values are converted to months. Word, text and Markdown files are
+added as documents. Uploaded reviews and documents replace the sample text on the first upload and are added to it after that. PDF and the old
+.xls and .doc formats are refused with a message saying what to export instead. Files are parsed on the server with no extra dependencies, and
+the same validation and personal-data redaction apply as for typed data.
+
+### Model answers and temperature
+
+The written summary, custom agents and **Ask your data** all use the model you chose on the API Key page. There is no rule-based fallback: if no
+model is available, Ask says how to enable one. The **temperature** setting (0 to 1) controls how closely the model sticks to the figures. Lower
+values, around 0.1 to 0.3, are consistent and factual. Higher values are more varied. It is set on the API Key page and can be changed for a
+single question on the dashboard. Ask is given the monthly series, KPI definitions, industry benchmarks, insights, feature-area sentiment and a
+few short review excerpts, and it keeps the last few questions so follow-ups work. A 3B model on a CPU can still be slow or inaccurate, and Ollama
+needs free memory to load it; the dashboard shows the reason when a call fails.
 
 ### Custom agents and guidance
 

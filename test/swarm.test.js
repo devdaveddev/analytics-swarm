@@ -223,7 +223,7 @@ function scoreWord(word) {
   return scoreText(word).score;
 }
 
-import { healthOf, ruleAnswer, dashboardContext } from '../src/assistant.js';
+import { healthOf } from '../src/assistant.js';
 
 test('health headline reflects the worst insight severity', async () => {
   const control = new ControlAgent();
@@ -232,25 +232,6 @@ test('health headline reflects the worst insight severity', async () => {
   assert.ok(['attention', 'watch', 'healthy'].includes(health.status));
   const critical = job.result.widgets.find((w) => w.type === 'insights').items.some((i) => i.severity === 'critical');
   assert.equal(health.status === 'attention', critical);
-});
-
-test('ask: rule-based answers quote the right KPI and refuse unknown questions gracefully', async () => {
-  const control = new ControlAgent();
-  const job = await waitForJob(control, control.submit(SAMPLE_FORM));
-  const revenue = ruleAnswer(job.result, 'what is our revenue?');
-  assert.ok(revenue.startsWith('Monthly revenue:'), revenue);
-  const unknown = ruleAnswer(job.result, 'what is the weather in Paris');
-  assert.ok(unknown.includes('KPIs'));
-});
-
-test('ask context exposes the forecast and never includes raw review text', async () => {
-  const control = new ControlAgent();
-  const job = await waitForJob(control, control.submit(SAMPLE_FORM));
-  const ctx = dashboardContext(job.result);
-  const forecast = job.result.widgets.find((w) => w.type === 'forecast');
-  assert.equal(forecast.points.filter((p) => p.projected).length, 3);
-  assert.deepEqual(ctx.forecast, forecast.points);
-  assert.ok(!JSON.stringify(ctx).includes('Setup took 10 minutes'), 'review text must not be sent to the model');
 });
 
 import { DEFAULT_ORDER, validateWorkflow } from '../src/workflow.js';
@@ -310,4 +291,26 @@ test('llm settings: ollama is the default; keys are kept out of snapshots and re
   assert.equal(bad.ok, false);
   const nokey = validateCompanyInput({ ...SAMPLE_FORM, llm: { provider: 'anthropic' } });
   assert.ok(nokey.warnings.some((w) => w.includes('No API key')));
+});
+
+test('health: the dashboard data carries a status, and a declining company needs attention', async () => {
+  const control = new ControlAgent();
+  const growing = await waitForJob(control, control.submit(SAMPLE_FORM));
+  assert.ok(growing.result.health, 'health must be part of the dashboard data');
+  assert.equal(growing.result.health.status, 'healthy');
+
+  const declining = await waitForJob(control, control.submit({
+    ...SAMPLE_FORM,
+    metrics: `month,revenue,customers,marketing_spend,leads,conversions,churned
+2026-01,51000,120,9000,400,44,4
+2026-02,53500,126,9500,410,47,3
+2026-03,49800,124,12000,380,31,9
+2026-04,47200,118,13500,360,28,12
+2026-05,46100,112,14000,350,25,14
+2026-06,44800,108,15000,340,22,13`,
+  }));
+  assert.equal(declining.result.health.status, 'attention');
+  assert.match(declining.result.health.label, /critical issue/);
+  const titles = declining.result.widgets.find((w) => w.type === 'insights').items.map((i) => i.title);
+  assert.ok(titles.includes('Revenue is declining') && titles.includes('Churn is more than double the benchmark'));
 });

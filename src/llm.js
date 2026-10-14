@@ -14,7 +14,10 @@ export const PROVIDERS = {
   anthropic: { label: 'Anthropic', needsKey: true, defaultModel: 'claude-haiku-5-5' },
 };
 
-export const defaultLLM = () => ({ provider: 'ollama', model: OLLAMA_MODEL, baseUrl: '', apiKey: '' });
+export const DEFAULT_TEMPERATURE = 0.3;
+export const clampTemperature = (t) => (Number.isFinite(Number(t)) ? Math.min(1, Math.max(0, Number(t))) : DEFAULT_TEMPERATURE);
+
+export const defaultLLM = () => ({ provider: 'ollama', model: OLLAMA_MODEL, baseUrl: '', apiKey: '', temperature: DEFAULT_TEMPERATURE });
 
 export function llmAvailable(llm = defaultLLM()) {
   const provider = llm?.provider ?? 'ollama';
@@ -48,11 +51,11 @@ async function post(url, headers, body, timeoutMs, secret = '') {
 
 // OpenAI's newer reasoning models reject max_tokens and a custom temperature and want max_completion_tokens.
 // Older models and most compatible servers (OpenRouter, vLLM, LM Studio) accept max_tokens, so try that first.
-async function openaiChat(base, llm, model, messages, maxTokens, timeoutMs) {
+async function openaiChat(base, llm, model, messages, maxTokens, temperature, timeoutMs) {
   const url = `${base}/chat/completions`;
   const headers = { authorization: `Bearer ${llm.apiKey}` };
   try {
-    return await post(url, headers, { model, max_tokens: maxTokens, temperature: 0.3, messages }, timeoutMs, llm.apiKey);
+    return await post(url, headers, { model, max_tokens: maxTokens, temperature, messages }, timeoutMs, llm.apiKey);
   } catch (err) {
     if (err.status !== 400 || !/max_completion_tokens|max_tokens|temperature/i.test(err.message)) throw err;
     // Reasoning tokens count toward the limit, so allow more room than the visible answer needs.
@@ -60,19 +63,21 @@ async function openaiChat(base, llm, model, messages, maxTokens, timeoutMs) {
   }
 }
 
-export async function completeWithLLM({ system, user, maxTokens = 600 }, llm = defaultLLM()) {
+// temperature: 0 is the most consistent and factual, 1 the most varied. A per-call value beats the saved setting.
+export async function completeWithLLM({ system, user, maxTokens = 600, temperature }, llm = defaultLLM()) {
   if (!llmAvailable(llm)) return null;
   const provider = llm?.provider ?? 'ollama';
   const timeoutMs = Number(process.env.OLLAMA_TIMEOUT_MS) || 90_000;
   const model = llm.model || PROVIDERS[provider].defaultModel;
   const messages = [{ role: 'system', content: system }, { role: 'user', content: user }];
+  const temp = clampTemperature(temperature ?? llm?.temperature);
 
   if (provider === 'ollama') {
     const data = await post(`${OLLAMA_HOST}/api/chat`, {}, {
       model,
       stream: false,
       messages,
-      options: { num_predict: maxTokens, temperature: 0.3 },
+      options: { num_predict: maxTokens, temperature: temp },
     }, timeoutMs);
     return data.message?.content?.trim() || null;
   }
@@ -80,7 +85,7 @@ export async function completeWithLLM({ system, user, maxTokens = 600 }, llm = d
   if (provider === 'openai') {
     const base = (llm.baseUrl || PROVIDERS.openai.defaultBaseUrl).replace(/\/+$/, '');
     await assertPublicUrl(base); // user-supplied URL: block private and loopback addresses
-    const data = await openaiChat(base, llm, model, messages, maxTokens, timeoutMs);
+    const data = await openaiChat(base, llm, model, messages, maxTokens, temp, timeoutMs);
     return data.choices?.[0]?.message?.content?.trim() || null;
   }
 
@@ -88,6 +93,7 @@ export async function completeWithLLM({ system, user, maxTokens = 600 }, llm = d
   const data = await post('https://api.anthropic.com/v1/messages', { 'x-api-key': llm.apiKey, 'anthropic-version': '2023-06-01' }, {
     model,
     max_tokens: maxTokens,
+    temperature: temp,
     system,
     messages: [{ role: 'user', content: user }],
   }, timeoutMs, llm.apiKey);

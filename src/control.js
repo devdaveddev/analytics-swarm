@@ -10,6 +10,7 @@ import { refinerAgent } from './agents/refiner.js';
 import { leadgenAgent } from './agents/leadgen.js';
 import { consultantAgent } from './agents/consultant.js';
 import { forecasterAgent } from './agents/forecaster.js';
+import { healthOf } from './assistant.js';
 import { makeCustomAgent } from './agents/custom.js';
 import { visualizerAgent } from './agents/visualizer.js';
 import { AGENT_META, DEFAULT_ORDER } from './workflow.js';
@@ -157,7 +158,7 @@ export class ControlAgent {
       }
     }
 
-    job.result = { ...ctx.visualizer, warnings: [...job.warnings, ...ctx.visualizer.warnings] };
+    job.result = { ...ctx.visualizer, health: healthOf(ctx.visualizer), warnings: [...job.warnings, ...ctx.visualizer.warnings] };
     job.stage = 'done';
     job.status = 'completed';
     this.#emit(job, 'job', { status: 'completed', message: 'Dashboard ready' });

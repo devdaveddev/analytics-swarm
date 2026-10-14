@@ -9,6 +9,7 @@ import { SAMPLE_FORM } from './src/sample.js';
 import { feedbackStats, loadFeedback, recordRecommendationVote, recordReviewCorrection } from './src/feedback.js';
 import { parseLLM, sanitizeText } from './src/guardrails.js';
 import { askDashboard } from './src/assistant.js';
+import { MAX_FILE_BYTES, parseUpload } from './src/files.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(ROOT, 'public');
@@ -56,12 +57,12 @@ function sendJson(res, status, body) {
   res.end(JSON.stringify(body));
 }
 
-async function readJson(req) {
+async function readJson(req, limit = MAX_BODY_BYTES) {
   const chunks = [];
   let size = 0;
   for await (const chunk of req) {
     size += chunk.length;
-    if (size > MAX_BODY_BYTES) throw new HttpError(413, 'Request body is larger than 1 MB.');
+    if (size > limit) throw new HttpError(413, `Request body is larger than ${Math.round(limit / 1024 / 1024)} MB.`);
     chunks.push(chunk);
   }
   try {
@@ -104,6 +105,20 @@ async function handleApi(req, res, url) {
 
   if (req.method === 'GET' && pathname === '/api/health') {
     return sendJson(res, 200, { ok: true, llm: llmAvailable(), stages: PIPELINE.map((p) => p.name) });
+  }
+  if (req.method === 'POST' && pathname === '/api/parse-file') {
+    // Files arrive as base64 inside JSON, so the body limit allows for the 4/3 size increase.
+    const body = await readJson(req, Math.ceil(MAX_FILE_BYTES * 1.4) + 4096);
+    const name = sanitizeText(body.name, 120);
+    if (!name || typeof body.data !== 'string') throw new HttpError(400, 'Send the file name and its content.');
+    let buffer;
+    try {
+      buffer = Buffer.from(body.data, 'base64');
+      if (!buffer.length) throw new Error('The file is empty.');
+      return sendJson(res, 200, parseUpload(name, buffer));
+    } catch (err) {
+      throw new HttpError(400, err.message);
+    }
   }
   if (req.method === 'GET' && pathname === '/api/workflow') {
     return sendJson(res, 200, workflowMeta());
@@ -168,7 +183,17 @@ async function handleApi(req, res, url) {
     const body = await readJson(req);
     const question = sanitizeText(body.question, 500);
     if (question.length < 3) throw new HttpError(400, 'Ask a question of at least 3 characters.');
-    return sendJson(res, 200, await askDashboard(job.result, question, job.llm));
+    let temperature;
+    if (body.temperature !== undefined && body.temperature !== null && body.temperature !== '') {
+      temperature = Number(body.temperature);
+      if (!Number.isFinite(temperature) || temperature < 0 || temperature > 1) throw new HttpError(400, 'Temperature must be between 0 and 1.');
+    }
+    // Earlier turns give follow-up questions their context. Keep the last few, short.
+    const history = (Array.isArray(body.history) ? body.history : [])
+      .slice(-4)
+      .map((h) => ({ q: sanitizeText(h?.q, 500), a: sanitizeText(h?.a, 800) }))
+      .filter((h) => h.q && h.a);
+    return sendJson(res, 200, await askDashboard(job.result, question, { llm: job.llm, temperature, history }));
   }
 
   const refresh = pathname.match(/^\/api\/jobs\/([^/]+)\/refresh$/);

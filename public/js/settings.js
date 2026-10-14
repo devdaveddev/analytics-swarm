@@ -8,7 +8,7 @@
 
   const current = () => {
     const data = Object.fromEntries(new FormData(form));
-    return { provider: data.provider, model: data.model.trim(), baseUrl: data.baseUrl.trim(), apiKey: data.apiKey.trim() };
+    return { provider: data.provider, model: data.model.trim(), baseUrl: data.baseUrl.trim(), apiKey: data.apiKey.trim(), temperature: Number(data.temperature) };
   };
 
   function show(message, ok) {
@@ -33,8 +33,15 @@
     form.elements.model.value = settings.model ?? '';
     form.elements.baseUrl.value = settings.baseUrl ?? '';
     form.elements.apiKey.value = settings.apiKey ?? '';
+    form.elements.temperature.value = settings.temperature ?? 0.3;
+    showTemperature();
     syncFields({ keepModel: true });
   }
+
+  const showTemperature = () => {
+    document.getElementById('temp-out').textContent = Number(form.elements.temperature.value).toFixed(1);
+  };
+  form.elements.temperature.addEventListener('input', showTemperature);
 
   form.addEventListener('change', (e) => {
     if (e.target.name === 'provider') {
@@ -57,7 +64,7 @@
 
   document.getElementById('reset').addEventListener('click', () => {
     store.remove(KEY);
-    fill({ provider: 'ollama', model: '', baseUrl: '', apiKey: '' });
+    fill({ provider: 'ollama', model: '', baseUrl: '', apiKey: '', temperature: 0.3 });
     show('Back to the Ollama default.', true);
   });
 

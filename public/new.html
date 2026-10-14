@@ -27,6 +27,18 @@
     <div class="notice error" id="errors" hidden></div>
 
     <form id="company-form" class="form" novalidate>
+      <fieldset class="uploader">
+        <legend>Upload files</legend>
+        <p class="help">Add spreadsheets or documents instead of typing. A <strong>CSV or Excel</strong> sheet with monthly figures (columns such as month, revenue, customers, marketing spend, leads, conversions, churned) fills the metrics. A sheet with a review, comment or feedback column adds reviews. <strong>Word (.docx), text and Markdown</strong> files are added as documents. PDF and the old .xls and .doc formats are not supported.</p>
+        <div class="dropzone" id="dropzone">
+          <input type="file" id="file-input" multiple accept=".csv,.tsv,.xlsx,.docx,.txt,.md" class="visually-hidden">
+          <label for="file-input" class="btn ghost">Choose files</label>
+          <span class="muted small">or drop them here. Up to 4 MB each.</span>
+        </div>
+        <ul class="file-list" id="file-list" aria-live="polite"></ul>
+        <button type="button" class="btn-mini" id="clear-fields">Clear all fields</button>
+      </fieldset>
+
       <fieldset>
         <legend>Company</legend>
         <div class="grid-2">

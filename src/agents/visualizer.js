@@ -247,7 +247,7 @@ export async function visualizerAgent(ctx) {
       title: 'Consultant summary',
       body:
         consultant.narrative ??
-        `Rule-based analysis complete. ${consultant.llmStatus === 'disabled' ? 'Narrative is off (OLLAMA_DISABLED=1).' : `Narrative status: ${consultant.llmStatus}.`}`,
+        `The written summary needs a model. ${consultant.llmStatus === 'disabled' ? 'Turn on Ollama or add an API key on the API Key page, then run the analysis again.' : `The model call did not finish (${consultant.llmStatus}). Check the API Key page and run again.`}`,
     },
   ];
 
@@ -266,6 +266,33 @@ export async function visualizerAgent(ctx) {
     kpiTiles,
     widgets,
     warnings,
+    askContext: {
+      definitions: {
+        churnRate: 'Customers lost in the month divided by customers at the end of the previous month.',
+        cac: 'Marketing spend divided by estimated new customers (net customer change plus churned customers).',
+        conversionRate: 'Conversions divided by leads in the month.',
+        arpu: 'Revenue divided by customers in the month.',
+        sentiment: 'Average review sentiment from -1 (very negative) to +1 (very positive).',
+        changeOverPeriod: 'KPI change is measured from the first to the last month provided.',
+      },
+      benchmarks: {
+        industry: parser.benchmarks.industry,
+        monthlyChurn: parser.benchmarks.churnMonthly,
+        leadConversion: parser.benchmarks.conversionRate,
+        costPerLead: parser.benchmarks.costPerLead,
+        note: 'Illustrative defaults for the industry, not measured market data.',
+      },
+      monthly: refiner.series.map((s) => ({
+        month: s.month, revenue: s.revenue, customers: s.customers, newCustomers: s.newCustomers, churnRate: s.churnRate,
+        cac: s.cac, conversionRate: s.conversionRate, costPerLead: s.costPerLead, leads: s.leads, conversions: s.conversions, marketingSpend: s.marketingSpend,
+      })),
+      // A few short excerpts help with "why" questions. They are already redacted; flagged reviews are left out.
+      reviewExcerpts: (() => {
+        const usable = consultant.reviews.filter((r) => !r.injection).sort((a, b) => a.score - b.score);
+        const pick = [...usable.slice(0, 4), ...usable.slice(-4)].filter((r, i, all) => all.indexOf(r) === i);
+        return pick.map((r) => ({ sentiment: r.label, rating: r.rating, text: r.text.slice(0, 180) }));
+      })(),
+    },
     meta: {
       stages: ctx.stages ?? [],
       llm: consultant.llmStatus,

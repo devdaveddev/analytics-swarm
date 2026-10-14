@@ -718,3 +718,31 @@ html { scroll-behavior: smooth; }
 .form-error { min-height: 1.4em; margin: 0 0 8px; color: var(--danger); font-size: .92rem; }
 .form > textarea, .form textarea#guidance { width: 100%; }
 #custom-count { display: block; margin-top: 4px; color: var(--accent); }
+
+/* Ask: conversation thread and temperature */
+.thread { display: grid; gap: 10px; margin: 8px 0 10px; }
+.turn { padding: 10px 12px; border-radius: 10px; background: var(--surface-2); }
+.turn p { margin: 0; }
+.turn .q { font-weight: 600; margin-bottom: 4px; }
+.turn .a { white-space: pre-wrap; }
+.turn .muted { margin-top: 6px; }
+.temp-row { display: grid; grid-template-columns: auto minmax(120px, 220px) 1fr; gap: 12px; align-items: center; margin-top: 6px; }
+.temp-row label { font-weight: 600; font-size: .9rem; }
+.temp-row output, .range output { color: var(--accent); font-variant-numeric: tabular-nums; margin-left: 6px; }
+.temp-row input[type=range], .range input[type=range] { accent-color: var(--accent); width: 100%; padding: 0; background: transparent; border: 0; min-height: 28px; }
+.range { display: grid !important; gap: 6px; }
+@media (max-width: 760px) { .temp-row { grid-template-columns: 1fr; gap: 6px; } }
+
+/* File upload */
+.dropzone {
+  display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 18px; border: 2px dashed var(--border-strong);
+  border-radius: 12px; background: var(--bg); transition: border-color .2s, background-color .2s;
+}
+.dropzone.over { border-color: var(--accent); background: var(--accent-soft); }
+.dropzone label.btn { margin: 0; color: var(--text); cursor: pointer; }
+.dropzone:focus-within label.btn { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
+.file-list { list-style: none; padding: 0; margin: 12px 0; display: grid; gap: 6px; font-size: .9rem; }
+.file-list li { padding: 8px 10px; border-radius: 8px; background: var(--surface-2); overflow-wrap: anywhere; }
+.file-list li.file-bad { background: color-mix(in srgb, var(--danger) 12%, transparent); }
+.file-list li.file-warn { background: color-mix(in srgb, var(--warning) 12%, transparent); }
+.health { margin-bottom: 12px; }
